@@ -608,7 +608,7 @@ def evaluate(model):
     losses = 0
     
     # Load_Dataset
-    dataset= fr_to_en(set_type='validation')
+    dataset= fr_to_en(set_type='valid')
 
     # validation 데이터 불러오기
     batch_size = 128
