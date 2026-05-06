@@ -1,5 +1,5 @@
 from torch.utils.data import Dataset
-import utils
+import util
 
 
 class fr_to_en(Dataset):
@@ -7,20 +7,20 @@ class fr_to_en(Dataset):
 
     def __init__(self, set_type):
         super().__init__()
-        if set_type == "training":
-            self.src_lang = utils.open_text_set("data/training/train.fr")
-            self.trg_lang = utils.open_text_set("data/training/train.en")
+        if set_type == "train":
+            self.src_lang = util.open_text_set("data/train/train.fr")
+            self.trg_lang = util.open_text_set("data/train/train.en")
 
-            print('► Dataset is "training"')
+            print('► Dataset is "train"')
 
-        elif set_type == "validation":
-            self.src_lang = utils.open_text_set("data/validation/val.fr")
-            self.trg_lang = utils.open_text_set("data/validation/val.en")
+        elif set_type == "valid":
+            self.src_lang = util.open_text_set("data/valid/val.fr")
+            self.trg_lang = util.open_text_set("data/valid/val.en")
 
-            print('► Dataset is "validation"')
+            print('► Dataset is "valid"')
 
         else:
-            raise ValueError('set_type must be "training" or "validation"')
+            raise ValueError('set_type must be "train" or "valid"')
 
     def __len__(self):
         return len(self.src_lang)

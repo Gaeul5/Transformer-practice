@@ -11,10 +11,10 @@ def open_text_set(dir: str) -> list:
     return f
 
 def make_vocab(
-    src_lang: Itrable,
-    trg_lang: Itrable,
+    src_lang: Iterable,
+    trg_lang: Iterable,
 ) -> list:
-    #vocab 생성 (src_lang : input 언어, trg_lang : output 언어
+    #vocab 생성 (src_lang : input 언어, trg_lang : output 언어)
     
     token_transform = {}
     vocab_transform = {}
@@ -25,7 +25,7 @@ def make_vocab(
     token_transform[TRG_LANGUAGE] = get_tokenizer('spacy', language='en_core_web_sm')
 
     # token 생성 위한 iterator
-    def yield_tokens(data_iter: Iterable, language: str) -> List[str]:
+    def yield_tokens(data_iter: Iterable, language: str) -> Iterable[str]:
 
         for data_sample in data_iter:
             yield token_transform[language](data_sample) # memory 초과 방지용
@@ -61,4 +61,4 @@ def sequential_transforms(*transforms):
 
 def tensor_transform(token_ids: List[int]):
     # 토크나이징 한 문장에 시작과 끝 의미하는 <bos>, <eos> 추가
-    return torch.cat((torch.tensor([2]), torch.tensor(tocken_ids), torch.tensor([3])))
+    return torch.cat((torch.tensor([2]), torch.tensor(token_ids), torch.tensor([3])))

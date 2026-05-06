@@ -2,7 +2,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 from typing import Iterable, List
 from data import fr_to_en
-import utils
+import util 
 import torch.nn as nn
 import pandas as pd
 import json
@@ -10,16 +10,16 @@ import torch
 
 ## Vocab 만들기
 
-fr_train = utils.open_text_set("data/train/train.fr")
-en_train = utils.open_text_set("data/train/train.en")
+fr_train = util.open_text_set("data/train/train.fr")
+en_train = util.open_text_set("data/train/train.en")
 
 try :
-    vocab_transform, token_transform = utils.make_vocab(fr_train, en_train)
+    vocab_transform, token_transform = util.make_vocab(fr_train, en_train)
 except :
     import spacy.cli
     spacy.cli.download("fr_core_news_sm")
     spacy.cli.download("en_core_web_sm")
-    vocab_transform, token_transform = utils.make_vocab(fr_train, en_train)
+    vocab_transform, token_transform = util.make_vocab(fr_train, en_train)
 
 # param
 SRC_LANGUAGE, TRG_LANGUAGE = ["fr", "en"]
@@ -496,18 +496,18 @@ def collate_fn(batch_iter: Iterable):
     토크나이징 => encoding => 시작 끝을 의미하는 spectial token(<bos>,<eos>) 추가 순으로 진행
     """
     text_transform = {}
-    for ln in [SRC_LANGUAGE, TGT_LANGUAGE]:
-        text_transform[ln] = utils.sequential_transforms(
+    for ln in [SRC_LANGUAGE, TRG_LANGUAGE]:
+        text_transform[ln] = util.sequential_transforms(
             token_transform[ln],  # 토크나이징
             vocab_transform[ln],  # encoding
-            utils.tensor_transform, # BOS/EOS를 추가하고 텐서를 생성
+            util.tensor_transform, # BOS/EOS를 추가하고 텐서를 생성
         )  
         # sequential_transform, tensor_transform은 utils.py 참고
     
     src_batch, tgt_batch = [], []
     for src_sample, tgt_sample in batch_iter:
         src_batch.append(text_transform[SRC_LANGUAGE](src_sample))
-        tgt_batch.append(text_transform[TGT_LANGUAGE](tgt_sample))
+        tgt_batch.append(text_transform[TRG_LANGUAGE](tgt_sample))
 
     # Pad 붙이기
     PAD_IDX = 1
