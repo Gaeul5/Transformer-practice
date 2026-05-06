@@ -2,6 +2,8 @@ from torchtext.data.utils import get_tokenizer
 from torchtext.vocab import build_vocab_from_iterator
 from typing import Iterable, List
 import torch
+import torchtext
+torchtext.disable_torchtext_deprecation_warning()
 
 def open_text_set(dir: str) -> list:
     #train, val 파일 오픈 용도
@@ -21,7 +23,7 @@ def make_vocab(
 
     SRC_LANGUAGE, TRG_LANGUAGE = ["fr", "en"]
     # Load_tokenizer
-    token_transform[SRC_LANGUAGE] = get_tokenizer('spacy', language='fr_coren_news_sm')
+    token_transform[SRC_LANGUAGE] = get_tokenizer('spacy', language='fr_core_news_sm')
     token_transform[TRG_LANGUAGE] = get_tokenizer('spacy', language='en_core_web_sm')
 
     # token 생성 위한 iterator

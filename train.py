@@ -31,79 +31,61 @@ import math
 import torch.nn.functional as F
 
 class selfAttention(nn.Module):
-    def __init__(self, embed_size, heads) -> None:
-        """
-        embed_size : 임베딩 차원
-        heads : multi-head attention에서 head의 수
-        """
-        super().__init__()
+    def __init__(self, embed_size, heads):
+        super(selfAttention, self).__init__()
         self.embed_size = embed_size
         self.heads = heads
         self.head_dim = embed_size // heads
 
-        # query, key, value을 위한 선형 변환 레이어
-        self.query_linear = nn.Linear(self.head_dim, self.head_dim, bias=False)
-        self.key_linear = nn.Linear(self.head_dim, self.head_dim, bias=False)
-        self.value_linear = nn.Linear(self.head_dim, self.head_dim, bias=False)
+        assert (self.head_dim * heads == embed_size), "Embed size needs to be div by heads"
 
+        # 변수명 통일: _linear를 붙여서 명확하게 구분합니다.
+        self.values_linear = nn.Linear(self.head_dim, self.head_dim, bias=False)
+        self.keys_linear = nn.Linear(self.head_dim, self.head_dim, bias=False)
+        self.queries_linear = nn.Linear(self.head_dim, self.head_dim, bias=False)
         self.fc_out = nn.Linear(heads * self.head_dim, embed_size)
 
     def forward(self, values, keys, query, mask):
-        """
-        query, key, value : (N, seq_len, embed_size)
-        N_batch = 문장 개수 (=batch_size)
-        seq_len : 훈련 문장 내 최대 token 개수
-        embed_size : embedding 차원
-        """
-
-        N_batch = query.shape[0] # 총 문장 개수
+        # N: Batch Size
+        N = query.shape[0]
         value_len, key_len, query_len = values.shape[1], keys.shape[1], query.shape[1]
 
-        value = values.reshape(N_batch, value_len, self.heads, self.head_dim)
-        key = keys.reshape(N_batch, key_len, self.heads, self.head_dim)
-        query = query.reshape(N_batch, query_len, self.heads, self.head_dim)
+        # Multi-head로 쪼개기: (N, seq_len, heads, head_dim)
+        values = values.reshape(N, value_len, self.heads, self.head_dim)
+        keys = keys.reshape(N, key_len, self.heads, self.head_dim)
+        queries = query.reshape(N, query_len, self.heads, self.head_dim)
 
-        # Q, K, V 계산
-        V = self.value(value)
-        K = self.key(key)
-        Q = self.query(query)
+        # 선형 변환 적용
+        values = self.values_linear(values)
+        keys = self.keys_linear(keys)
+        queries = self.queries_linear(queries)
 
-        # score = Q dot K^T
-        score = torch.matmul(Q, K.transpose(-2, -1))
-        # query shape : (n, h, query_len, d_k)
-        # transposed key shape : (n, h, d_k, key_len)
-        # score shape : (n, h, query_len, key_len)
+        # einsum을 이용한 행렬 곱 (Attention Score 계산)
+        # n: batch, q: query_len, k: key_len, h: heads, d: head_dim
+        # 결과: (N, heads, query_len, key_len)
+        energy = torch.einsum("nqhd,nkhd->nhqk", [queries, keys])
 
         if mask is not None:
-            score = score.masked_fill(mask == 0, float("-1e20"))
-            """
-            mask = 0 인 경우 -inf(= -1e20) 대입
-            softmax 계산시 -inf인 부분은 0이 됨.
-            """
+            # 에러 해결의 핵심: mask의 차원을 (N, 1, 1, key_len)으로 맞춰줍니다.
+            # 8(heads)과 31(seq_len)이 충돌하지 않도록 브로드캐스팅을 유도합니다.
+            if mask.dim() == 2: # (N, key_len)인 경우
+                mask = mask.unsqueeze(1).unsqueeze(2)
+            elif mask.dim() == 3: # (N, 1, key_len)인 경우
+                mask = mask.unsqueeze(1)
+            
+            energy = energy.masked_fill(mask == 0, float("-1e20"))
 
-        # attention 정의
-
-        # d_k로 나눈 뒤 => softmax
-        d_k = self.embed_size ** (1 / 2)
-        softmax_score = torch.softmax(score / d_k, dim=3)
-        # softmax_score shape : (n, h, query_len, key_len)
-
-        # softmax * Value => attention 통합을 위한 reshape
-        out = torch.matmul(softmax_score, V).reshape(
-            N_batch, query_len, self.heads * self.head_dim
+        # Attention Weight 계산 및 적용
+        attention = torch.softmax(energy / (self.embed_size ** (1 / 2)), dim=3)
+        
+        # 결과 결합: (N, query_len, heads, head_dim) -> (N, query_len, embed_size)
+        out = torch.einsum("nhqk,nkhd->nqhd", [attention, values]).reshape(
+            N, query_len, self.heads * self.head_dim
         )
-        # softmax_score shape : (n, h, query_len, key_len)
-        # value shape : (n, h, value_len, d_k)
-        # (key_len = value_len 이므로)
-        # out shape : (n, h, query_len, d_k)
-        # reshape out : (n, query_len, h, d_k)
 
-        # concat all heads
         out = self.fc_out(out)
-        # concat out : (n, query_len, embed_size)
-
         return out
-
+    
 class EncoderBlock(nn.Module):
     def __init__(self, embed_size, heads, dropout, forward_expansion) -> None:
         """
@@ -574,7 +556,7 @@ def train_epoch(model,optimizer) :
     losses = 0
 
     # training 데이터 불러오기(29,000개 문장)
-    dataset= fr_to_en(set_type='training')
+    dataset= fr_to_en(set_type='train')
 
     # Data_loader
     batch_size = 128
