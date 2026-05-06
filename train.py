@@ -649,6 +649,36 @@ for epoch in range(1, NUM_EPOCHS+1):
     print((f"Epoch: {epoch}, Train loss: {train_loss:.3f}, Val loss: {val_loss:.3f}, "f"Epoch time = {(end_time - start_time):.3f}s"))
     print('----*'*20)
     print('')
+## 학습 및 평가 진행
+from timeit import default_timer as timer
+import os
 
+# 모델 저장 폴더 생성
+if not os.path.exists('model'):
+    os.makedirs('model')
+
+NUM_EPOCHS = 10
+
+for epoch in range(1, NUM_EPOCHS+1):
+    print('-'*30)
+    print(f'{epoch}번째 epoch 실행')
+    
+    start_time = timer()
+    train_loss = train_epoch(model.to(device), optimizer)
+    end_time = timer()
+    
+    val_loss = evaluate(model)
+    
+    # [수정 포인트] 매 에폭이 끝날 때마다 모델 저장
+    # 혹은 학습이 완전히 끝난 후 한 번만 저장해도 됩니다.
+    torch.save(model.state_dict(), 'model/model.pth')
+    print(f'>>> Epoch {epoch} 완료: model/model.pth 저장됨')
+
+    print('----*'*20)
+    print((f"Epoch: {epoch}, Train loss: {train_loss:.3f}, Val loss: {val_loss:.3f}, "f"Epoch time = {(end_time - start_time):.3f}s"))
+    print('----*'*20)
+    print('')
+
+print("최종 학습 완료 및 모델 저장 성공!")
 
 
