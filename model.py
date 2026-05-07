@@ -12,7 +12,6 @@ class selfAttention(nn.Module):
 
         assert (self.head_dim * heads == embed_size), "Embed size needs to be div by heads"
 
-        # [수정] model.pth에 저장된 이름과 동일하게 설정
         self.queries_linear = nn.Linear(self.head_dim, self.head_dim, bias=False)
         self.keys_linear = nn.Linear(self.head_dim, self.head_dim, bias=False)
         self.values_linear = nn.Linear(self.head_dim, self.head_dim, bias=False)
@@ -22,37 +21,27 @@ class selfAttention(nn.Module):
         N_batch = query.shape[0]
         value_len, key_len, query_len = value.shape[1], key.shape[1], query.shape[1]
 
-        # Multi-head로 쪼개기 (N, seq_len, heads, head_dim)
         value = value.reshape(N_batch, value_len, self.heads, self.head_dim)
         key = key.reshape(N_batch, key_len, self.heads, self.head_dim)
         query = query.reshape(N_batch, query_len, self.heads, self.head_dim)
 
-        # [수정] 정의된 선형 변환 이름에 맞춰 호출 (self.query -> self.queries_linear)
         V = self.values_linear(value)
         K = self.keys_linear(key)
         Q = self.queries_linear(query)
 
-        # Attention Score 계산 (einsum 사용이 차원 관리에 더 직관적입니다)
-        # n: batch, q: query_len, k: key_len, h: heads, d: head_dim
         energy = torch.einsum("nqhd,nkhd->nhqk", [Q, K])
 
         if mask is not None:
-            # Mask 차원 맞추기 (N, 1, 1, key_len) 혹은 (N, 1, query_len, key_len)
             if mask.dim() == 2:
                 mask = mask.unsqueeze(1).unsqueeze(2)
             elif mask.dim() == 3:
                 mask = mask.unsqueeze(1)
-            
             energy = energy.masked_fill(mask == 0, float("-1e20"))
 
-        # Scaled Dot-Product Attention
         attention = torch.softmax(energy / (self.embed_size ** (1 / 2)), dim=3)
-        
-        # 결과 결합
         out = torch.einsum("nhqk,nkhd->nqhd", [attention, V]).reshape(
             N_batch, query_len, self.heads * self.head_dim
         )
-
         out = self.fc_out(out)
         return out
 
@@ -63,7 +52,8 @@ class EncoderBlock(nn.Module):
         self.norm1 = nn.LayerNorm(embed_size)
         self.norm2 = nn.LayerNorm(embed_size)
 
-        self.feed_forward = nn.Sequential(
+        # model.pth 파일에 저장된 'feed_forawrd' 오타를 그대로 유지합니다.
+        self.feed_forawrd = nn.Sequential(
             nn.Linear(embed_size, forward_expansion * embed_size),
             nn.ReLU(),
             nn.Linear(forward_expansion * embed_size, embed_size),
@@ -73,7 +63,7 @@ class EncoderBlock(nn.Module):
     def forward(self, value, key, query, mask):
         attention = self.attention(value, key, query, mask)
         x = self.dropout(self.norm1(attention + query))
-        forward = self.feed_forward(x)
+        forward = self.feed_forawrd(x)
         out = self.dropout(self.norm2(forward + x))
         return out
 
@@ -155,6 +145,19 @@ class Transformer(nn.Module):
         self.trg_pad_idx = trg_pad_idx
         self.device = device
         self.fc_out = nn.Linear(embed_size, trg_vocab_size)
+
+    # [추가] test.py에서 사용하는 encode 메서드
+    def encode(self, src):
+        src_mask = self.make_pad_mask(src, src)
+        return self.Encoder(src, src_mask)
+
+    # [추가] test.py에서 사용하는 decode 메서드
+    def decode(self, src, trg, enc_src):
+        src_trg_mask = self.make_pad_mask(trg, src)
+        trg_mask = self.make_trg_mask(trg)
+        out = self.Decoder(trg, enc_src, src_trg_mask, trg_mask)
+        out = self.fc_out(out)
+        return F.log_softmax(out, dim=-1)
 
     def make_pad_mask(self, query, key):
         len_query, len_key = query.size(1), key.size(1)
